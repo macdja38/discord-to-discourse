@@ -49,13 +49,15 @@ bot.on("ready", () => {
 });
 bot.on("messageCreate", (msg) => {
   if (msg.channel.id === process.env.DISCORD_CHANNEL) {
-    console.log(msg.author.nick, msg.member.nick);
     if (msg.author && msg.content && msg.content.length > 0) {
+      let content;
       if (msg.member.nick) {
-        sendToDiscourse(`${msg.member.nick} (${msg.author.username}#${msg.author.discriminator}): ${msg.content}`);
+        content = `${msg.member.nick} (${msg.author.username}#${msg.author.discriminator}): ${msg.content}`;
       } else {
-        sendToDiscourse(`(${msg.author.username}#${msg.author.discriminator}): ${msg.content}`);
+        content = `(${msg.author.username}#${msg.author.discriminator}): ${msg.content}`
       }
+      console.log(`Sending ${content}`);
+      sendToDiscourse(content);
     }
   }
 });

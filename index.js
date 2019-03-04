@@ -32,9 +32,13 @@ function createOptions(raw) {
 function sendToDiscourse(raw) {
   return new Promise((resolve, reject) => {
     request(createOptions(raw), function (error, response, body) {
-      if (error) reject(new Error(error));
+      try {
+        if (error) reject(new Error(error));
 
-      resolve(JSON.parse(body));
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
     });
   })
 }

@@ -2,16 +2,30 @@ const request = require('request');
 const dotenv = require('dotenv').config();
 const Eris = require('eris');
 
-['FORM_ROOT', 'API_KEY', 'API_USERNAME', 'TOPIC_ID', 'DISCORD_TOKEN', 'DISCORD_CHANNEL'].forEach((key) => {
+['FORUM_ROOT', 'API_KEY', 'API_USERNAME', 'DISCORD_TOKEN', 'DISCORD_CHANNEL_TO_TOPIC_ID'].forEach((key) => {
   if (!Object.hasOwnProperty.call(process.env, key)) {
     throw new Error(`Please supply an environment variable of name ${key}
     You can do soo in the .env file you can make by duplicating .env.example and naming it .env`)
   }
 });
 
+let mapping = {};
+try {
+  mapping = JSON.parse(process.env.DISCORD_CHANNEL_TO_TOPIC_ID);
+} catch (error) {
+  console.log('An explicit mapping was not defined.');
+  console.log(process.env.DISCORD_CHANNEL_TO_TOPIC_ID);
+  console.error(error);
+  console.log('Falling back to DISCORD_CHANNEL and TOPIC_ID env variables. Migration to DISCORD_CHANNEL_TO_TOPIC_ID mapping recommended.');
+  mapping[process.env.DISCORD_CHANNEL] = process.env.TOPIC_ID;
+}
+
+function createURL(topicId) {
+  return `${process.env.FORUM_ROOT}babble/topics/${topicId}/posts`;
+}
+
 const options = {
   method: 'POST',
-  url: `${process.env.FORM_ROOT}babble/topics/${process.env.TOPIC_ID}/posts`,
   headers:
     {
       'cache-control': 'no-cache',
@@ -25,19 +39,21 @@ const options = {
     }
 };
 
-function createOptions(raw) {
-  return Object.assign({}, options, { form: Object.assign({}, options.form, { raw }) })
+function createOptions(topicId, raw) {
+  return Object.assign({}, options, {
+    uri: createURL(topicId),
+    form: Object.assign({}, options.form, { raw }),
+  });
 }
 
-function sendToDiscourse(raw) {
+function sendToDiscourse(topicId, raw) {
   return new Promise((resolve, reject) => {
-    request(createOptions(raw), function (error, response, body) {
+    request(createOptions(topicId, raw), function (error, response, body) {
       try {
         if (error) reject(new Error(error));
-
         resolve(JSON.parse(body));
       } catch (error) {
-        reject(error);
+        reject({ body, error });
       }
     });
   })
@@ -48,16 +64,17 @@ bot.on("ready", () => {
   console.log(`Ready as ${bot.user.username}!`);
 });
 bot.on("messageCreate", (msg) => {
-  if (msg.channel.id === process.env.DISCORD_CHANNEL) {
+  if (mapping.hasOwnProperty(msg.channel.id)) {
+    const topicId = mapping[msg.channel.id];
     if (msg.author && msg.content && msg.content.length > 0) {
       let content;
       if (msg.member.nick) {
         content = `${msg.member.nick} (${msg.author.username}#${msg.author.discriminator}): ${msg.content}`;
       } else {
-        content = `(${msg.author.username}#${msg.author.discriminator}): ${msg.content}`
+        content = `(${msg.author.username}#${msg.author.discriminator}): ${msg.content}`;
       }
       console.log(`Sending ${content}`);
-      sendToDiscourse(content);
+      sendToDiscourse(topicId, content).catch(console.error);
     }
   }
 });
